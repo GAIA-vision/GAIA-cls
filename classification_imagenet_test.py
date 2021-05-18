@@ -42,17 +42,18 @@ data = dict(
     train=dict(
         type=dataset_type,
         data_prefix='/mnt/diske/qing_chang/Data/ImageNet/ILSVRC2012_img_train',
+        ann_file='/mnt/diske/qing_chang/Data/ImageNet/train_labeled.txt',
         pipeline=train_pipeline),
     val=dict(
         type=dataset_type,
         data_prefix='/mnt/diske/qing_chang/Data/ImageNet/ILSVRC2012_img_val',
-        ann_file='/mnt/diske/qing_chang/Data/ImageNet/val.txt',
+        ann_file='/mnt/diske/qing_chang/Data/ImageNet/val_labeled.txt',
         pipeline=test_pipeline),
     test=dict(
         # replace `data/val` with `data/test` for standard test
         type=dataset_type,
         data_prefix='/mnt/diske/qing_chang/Data/ImageNet/ILSVRC2012_img_val',
-        ann_file='/mnt/diske/qing_chang/Data/ImageNet/val.txt',
+        ann_file='/mnt/diske/qing_chang/Data/ImageNet/val_labeled.txt',
         pipeline=test_pipeline))
 
 evaluation = dict(interval=1, metric='accuracy')
@@ -79,3 +80,4 @@ log_level = 'INFO'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
+work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-clas-imagenet-test'
