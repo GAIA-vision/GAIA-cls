@@ -141,8 +141,8 @@ def main():
     model = build_classifier(cfg.model)
 
     # set model samplers
-    # train_sampler = build_model_sampler(cfg.train_sampler)
-    # val_sampler = build_model_sampler(cfg.val_sampler)
+    train_sampler = build_model_sampler(cfg.train_sampler)
+    val_sampler = build_model_sampler(cfg.val_sampler)
 
     datasets = [build_dataset(cfg.data.train)]
     if len(cfg.workflow) == 2:
@@ -159,8 +159,8 @@ def main():
     
     train_model(
         model,
-        #train_sampler,
-        #val_sampler,
+        train_sampler,
+        val_sampler,
         datasets,
         cfg,
         distributed=distributed,

@@ -81,3 +81,24 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-clas-imagenet-test'
+
+val_sampler = dict(
+    type='anchor',
+    anchors=[
+        dict({
+            'name': 'R101',
+            'arch.backbone.stem.width': 64,
+            'arch.backbone.body.width': [64, 128, 256, 512],
+            'arch.backbone.body.depth': [3, 4, 23, 3]
+        })
+    ])
+train_sampler = dict(
+    type='concat',
+    model_samplers=[
+        dict({
+            'name': 'R101',
+            'arch.backbone.stem.width': 64,
+            'arch.backbone.body.width': [64, 128, 256, 512],
+            'arch.backbone.body.depth': [3, 4, 23, 3]
+        })
+    ])

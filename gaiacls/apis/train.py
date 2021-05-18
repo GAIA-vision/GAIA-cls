@@ -57,8 +57,8 @@ def set_random_seed(seed, deterministic=False):
         torch.backends.cudnn.benchmark = False
 
 def train_model(model,
-                #train_sampler, # model sampler
-                #val_sampler, # model sampler
+                train_sampler, # model sampler
+                val_sampler, # model sampler
                 dataset,
                 cfg,
                 distributed=False,
@@ -147,8 +147,8 @@ def train_model(model,
     
 
     # add hook for architecture manipulation
-    # manipulate_arch_hook = ManipulateArchHook(train_sampler)
-    # runner.register_hook(manipulate_arch_hook)
+    manipulate_arch_hook = ManipulateArchHook(train_sampler)
+    runner.register_hook(manipulate_arch_hook)
 
 
     # register eval hooks
