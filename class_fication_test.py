@@ -8,7 +8,7 @@ model = dict(
         style='pytorch'),
     neck=dict(type='GlobalAveragePooling'),
     head=dict(
-        type='DynamicLinearClsHead',
+        type='LinearClsHead',
         num_classes=10,
         in_channels=2048,
         loss=dict(type='CrossEntropyLoss', loss_weight=1.0),
@@ -21,17 +21,17 @@ img_norm_cfg = dict(
     std=[51.5865, 50.847, 51.255],
     to_rgb=True)
 train_pipeline = [
-    dict(type='RandomCrop_cls', size=32, padding=4),
-    dict(type='RandomFlip_cls', flip_prob=0.5, direction='horizontal'),
-    dict(type='Normalize_cls', **img_norm_cfg),
+    dict(type='RandomCrop', size=32, padding=4),
+    dict(type='RandomFlip', flip_prob=0.5, direction='horizontal'),
+    dict(type='Normalize', **img_norm_cfg),
     dict(type='ImageToTensor', keys=['img']),
     dict(type='ToTensor', keys=['gt_label']),
-    dict(type='Collect_cls', keys=['img', 'gt_label'])
+    dict(type='Collect', keys=['img', 'gt_label'])
 ]
 test_pipeline = [
-    dict(type='Normalize_cls', **img_norm_cfg),
+    dict(type='Normalize', **img_norm_cfg),
     dict(type='ImageToTensor', keys=['img']),
-    dict(type='Collect_cls', keys=['img'])
+    dict(type='Collect', keys=['img'])
 ]
 data = dict(
     samples_per_gpu=16,
@@ -67,7 +67,7 @@ log_level = 'INFO'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
-work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-seg-modelsample-class-test'
+work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-clas-test'
 
 '''
 stem_width_range = dict(
