@@ -1,10 +1,7 @@
-from .inference import (inference_segmentor,
-                        init_segmentor, show_result_pyplot)
-from .train import train_segmentor
+from .train import train_model
 from .test import multi_gpu_test, single_gpu_test
-from .train_classifier import train_classifier
+
 __all__ = [
-    'train_segmentor', 'init_segmentor',
-     'inference_segmentor', 'show_result_pyplot',
+    'train_model',
     'multi_gpu_test', 'single_gpu_test'
 ]

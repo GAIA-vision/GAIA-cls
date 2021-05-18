@@ -7,7 +7,7 @@ GPUS=$4
 PORT=${PORT:-29500}
 
 
-PYTHONPATH=/path/to/mmdetection:/path/to/gaiavision:/path/to/gaiadet:"$(dirname $0)/..":$PYTHONPATH \
+PYTHONPATH=/mnt/diske/qing_chang/GAIA/GAIA-cls:"$(dirname $0)/..":$PYTHONPATH \
 python -m torch.distributed.launch \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
