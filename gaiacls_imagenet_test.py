@@ -1,16 +1,22 @@
 # dataset settings
 # model settings
 model = dict(
-    type='ImageClassifier',
-    backbone=dict(
-        type='ResNet',
-        depth=101,
+    type='DynamicImageClassifier',
+   backbone=dict(
+        type='DynamicResNet',
+        in_channels=3,
+        stem_width=64,
+        body_depth=[3,4,23,3],
+        body_width=[64,128,256,512],
         num_stages=4,
-        out_indices=(3, ),
-        style='pytorch'),
+        out_indices=(3,),
+        style='pytorch',
+        conv_cfg=dict(type='DynConv2d'),
+        norm_eval=False,
+        norm_cfg=dict(type='BN', requires_grad=True)),
     neck=dict(type='GlobalAveragePooling'),
     head=dict(
-        type='LinearClsHead',
+        type='DynamicLinearClsHead',
         num_classes=1000,
         in_channels=2048,
         loss=dict(type='CrossEntropyLoss', loss_weight=1.0),

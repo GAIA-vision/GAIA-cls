@@ -1,4 +1,4 @@
-2021-05-18 09:18:10,790 - mmseg - INFO - Environment info:
+2021-05-12 17:36:00,264 - mmseg - INFO - Environment info:
 ------------------------------------------------------------
 sys.platform: linux
 Python: 3.7.8 (default, Jun 29 2020, 05:46:05) [GCC 5.4.0 20160609]
@@ -30,8 +30,8 @@ MMCV CUDA Compiler: 10.1
 MMSegmentation: 0.11.0+0448dec
 ------------------------------------------------------------
 
-2021-05-18 09:18:10,791 - mmseg - INFO - Distributed training: True
-2021-05-18 09:18:11,430 - mmseg - INFO - Config:
+2021-05-12 17:36:00,265 - mmseg - INFO - Distributed training: True
+2021-05-12 17:36:01,217 - mmseg - INFO - Config:
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
@@ -190,11 +190,11 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 cudnn_benchmark = True
-optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0)
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
 optimizer_config = dict()
 lr_config = dict(policy='poly', power=0.9, min_lr=0.0001, by_epoch=False)
 runner = dict(type='IterBasedRunner', max_iters=80000)
 checkpoint_config = dict(by_epoch=False, interval=8000)
 evaluation = dict(interval=8000, metric='mIoU')
-work_dir = '/data/qing_chang/env_mmsegmentation_origin/mmsegmentation/workdirs/res50-fromscrach-comparewith-gaia-8000iter/third_run'
+work_dir = 'workdirs/res50-fromscrach-comparewith-gaia-8000iter'
 gpu_ids = range(0, 1)
