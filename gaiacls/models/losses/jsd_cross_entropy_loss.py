@@ -1,10 +1,11 @@
 # refer from: https://github.com/rwightman/pytorch-image-models/blob/master/timm/loss/jsd.py
+import pdb
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from mmcls.models.builder import LOSSES
-from mmcls.models.losses.utils import weight_reduce
+from mmcls.models.losses.utils import weight_reduce_loss
 
 class LabelSmoothingCrossEntropy(nn.Module):
     """
@@ -29,7 +30,7 @@ class LabelSmoothingCrossEntropy(nn.Module):
         return loss.mean()
 
 @LOSSES.register_module()
-class JsdCrossEntropy(nn.Module):
+class JsdCrossEntropyLoss(nn.Module):
     """ Jensen-Shannon Divergence + Cross-Entropy Loss
     Based on impl here: https://github.com/google-research/augmix/blob/master/imagenet.py
     From paper: 'AugMix: A Simple Data Processing Method to Improve Robustness and Uncertainty -
@@ -47,25 +48,25 @@ class JsdCrossEntropy(nn.Module):
 
         self.reduction = reduction
         self.loss_weight = loss_weight
-        
-    # output->cls_score, target->label
-    # target.shape还得check一下, 而且因为处理的时候是直接在[N,3*C,H,W]的处理，和强baseline的
-    # 处理方式不一致，所以split的地方也得重写一下。
+
     def forward(self, cls_score, label,
                 weight=None,
                 avg_factor=None,
                 reduction_override=None,
                 **kwargs):
+        # pdb.set_trace()
         split_size = cls_score.shape[0] // self.num_splits
         assert split_size * self.num_splits == cls_score.shape[0]
         logits_split = torch.split(cls_score, split_size)
 
         # Cross-entropy is only computed on clean images
-        loss = self.cross_entropy_loss(logits_split[0], label[:split_size])
+        loss = self.cross_entropy_loss(logits_split[0], label)
         probs = [F.softmax(logits, dim=1) for logits in logits_split]
 
         # Clamp mixture distribution to avoid exploding KL divergence
         logp_mixture = torch.clamp(torch.stack(probs).mean(axis=0), 1e-7, 1).log()
         loss += self.alpha * sum([F.kl_div(
             logp_mixture, p_split, reduction='batchmean') for p_split in probs]) / len(probs)
-        return loss
+        
+        loss_cls = loss * self.loss_weight
+        return loss_cls

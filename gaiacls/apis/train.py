@@ -10,6 +10,7 @@ from mmcls.core import DistOptimizerHook
 from mmcls.datasets import build_dataloader, build_dataset
 from mmcls.utils import get_root_logger
 
+
 # TODO import eval hooks from mmcv and delete them from mmcls
 try:
     from mmcv.runner.hooks import EvalHook, DistEvalHook
@@ -33,6 +34,7 @@ from gaiavision.core import ManipulateArchHook
 
 # local lib
 from ..core.evaluation import CrossArchEvalHook, DistCrossArchEvalHook
+# from ..datasets import AugMixDataset_collate_fn
 
 # from ..datasets import build_dataset, UniConcatDataset
 
@@ -65,12 +67,15 @@ def train_model(model,
                 validate=False,
                 timestamp=None,
                 device='cuda',
-                meta=None):
+                meta=None,
+                aug_mix=False,
+                aug_num_split=None):
     logger = get_root_logger(cfg.log_level)
 
     # prepare data loaders
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
 
+    
     data_loaders = [
         build_dataloader(
             ds,
@@ -85,7 +90,7 @@ def train_model(model,
 
     # put model on gpus
     if distributed:
-        find_unused_parameters = cfg.get('find_unused_parameters', False)
+        find_unused_parameters = cfg.get('find_unused_parameters', True)
         # Sets the `find_unused_parameters` parameter in
         # torch.nn.parallel.DistributedDataParallel
         model = MMDistributedDataParallel(

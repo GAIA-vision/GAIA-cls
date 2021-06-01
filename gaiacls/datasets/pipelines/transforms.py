@@ -1,6 +1,7 @@
 import inspect
 import math
 import random
+import pdb
 
 import mmcv
 import numpy as np
@@ -38,15 +39,16 @@ class AugMix(object):
         self.aug_splits=aug_splits
 
     def __call__(self, results):
+        # 在ImageToTensor之前都是以ndarray形式处理，并且是[H,W,C]的格式
         for key in results.get('img_fields', ['img']):
             img = results[key]
-            
             assert img.ndim == 3
-            C,H,W = img.shape
+            H,W,C = img.shape
 
-            temp_img = np.zeros((C*self.aug_splits, H, W),dtype=img.dtype)
-            for i in range(aug_splits):
-                temp_img[i*C:(i+1)*C,:,:] = img           
+            temp_img = np.zeros((H, W, C*self.aug_splits,),dtype=img.dtype)
+            for i in range(self.aug_splits):
+                temp_img[:,:,i*C:(i+1)*C] = img           
+            results[key] = temp_img
             
         return results
 
@@ -58,13 +60,11 @@ class AugMix(object):
 # 因为本身mmcls的AutoAugment已经注册过了，所以不能再用这个名字
 # 这里加个后缀_augmix
 # 还得check下mmcls的AutoAugment和pytorch image models的那个AutoAugment是否可以互相替代
-
 @PIPELINES.register_module()
 class AutoAugment_augmix(object):
     """
     """
     def __init__(self,):
-        
         pass
 
     def __call__(self,):
@@ -81,7 +81,7 @@ class AutoAugment_augmix(object):
 
 
 @PIPELINES.register_module()
-class RandomErasing(object)
+class RandomErasing(object):
     """
         refer from: https://github.com/rwightman/pytorch-image-models/blob/master/timm/data/random_erasing.py
         Randomly selects a rectangle region in an image and erases its pixels.
@@ -145,11 +145,11 @@ class RandomErasing(object)
                         dtype=dtype, device=self.device)
                     break
 
-    def __call__(self, results):\
+    def __call__(self, results):
 
         for key in results.get('img_fields', ['img']):
             img = results[key]
-            assert img.shape[0] = num_splits*origin_img_channel
+            assert img.shape[0] == num_splits*origin_img_channel
             
             for i in range(1,self.num_splits):
                 input = img[i*self.origin_img_channel:(i+1)*self.origin_img_channel, ...] # 赋值是浅拷贝

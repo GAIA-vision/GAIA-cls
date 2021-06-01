@@ -20,9 +20,7 @@ model = dict(
         type='DynamicLinearClsHead',
         num_classes=1000,
         in_channels=2048,
-        # --jsd JSDLoss是配合AugMix使用的，有没有办法加个assert来强行的判断一下？
-        # 想了下，assert输入应该是[b,3*3,H,W]，即第二个通道必须是9，否则报错。
-        loss=dict(type='JSDLoss', loss_weight=1.0),
+        loss=dict(type='JsdCrossEntropyLoss', num_splits=3, loss_weight=1.0),
         topk=(1, 5)))
 dataset_type = 'ImageNet'
 img_norm_cfg = dict(
@@ -38,17 +36,11 @@ train_pipeline = [
         to_rgb=True),
     dict(type='ImageToTensor', keys=['img']),
     dict(type='ToTensor', keys=['gt_label']),
-    
-    # AugMix
-    # --aug-splits 3
-    dict(type='AugMix',aug_splits=3)
+    dict(type='AugMix',aug_splits=3),
     # --aa rand-m9-mstd0.5-inc1  mmcls本身就提供AutoAugment，看看是直接复用mmcls的还是复用这个强baseline的
-    dict(type='AutoAugment_augmix',aa='rand-m9-mstd0.5-inc1',mode='AugMix')
+    # dict(type='AutoAugment_augmix',aa='rand-m9-mstd0.5-inc1',mode='AugMix')
     # --remode pixel --reprob 0.6 
-    dict(type='RandomErasing',remode='pixel',reprob=0.6)
-    
-    # 这个Collect可能得改一下，因为经过AugMix一个img返回的是[3*3,H,W]，
-    # 这里不修改好像也可以，毕竟AugMix后面接的是JSD Loss，在JSD Loss里面处理就好了
+    # dict(type='RandomErasing',remode='pixel',reprob=0.6)
     dict(type='Collect', keys=['img', 'gt_label'])
 ]
 test_pipeline = [
@@ -119,11 +111,11 @@ evaluation = dict(interval=1, metric='accuracy')
 
 # --lr 0.05  momentum 和 weight decay如何设置还得check一下。
 optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=0.0001)
-
 optimizer_config = dict(grad_clip=None)
 
+# todo
 # --sched cosine 
-lr_config = dict(policy='CosineAnnealing', )
+lr_config = dict(policy='step', step=[30, 60, 90])
 
 # --epochs 200 这个可能还有点问题，因为那个强baseline打印的时候，epoch数目不是200 是210 好像是有默认的warmup
 # mmcv支持设置warmup 不过因为强baseline里面的不是显示设置的，还得check下它的warmup具体是怎样的。
@@ -136,6 +128,11 @@ log_level = 'INFO'
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
+
+# 可以查下mmcv.configFromfile的那个API是否支持config里面有if语句。
+augmix = True
+aug_num_split = 3
+
 work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-cls-imagenet-train-supernet'
 stem_width_range = dict(
     key='arch.backbone.stem.width', start=32, end=64, step=16)

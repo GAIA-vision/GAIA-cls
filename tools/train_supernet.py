@@ -63,6 +63,10 @@ def parse_args():
         default='none',
         help='job launcher')
     parser.add_argument('--local_rank', type=int, default=0)
+
+    parser.add_argument('--aug_mix', type=bool, default=False)
+    parser.add_argument('--aug_num_split', type=int, default=None)
+    
     args = parser.parse_args()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
@@ -167,7 +171,9 @@ def main():
         validate=(not args.no_validate),
         timestamp=timestamp,
         device='cpu' if args.device == 'cpu' else 'cuda',
-        meta=meta)
+        meta=meta,
+        aug_mix=args.aug_mix,
+        aug_num_split=args.aug_num_split)
 
 
 if __name__ == '__main__':
