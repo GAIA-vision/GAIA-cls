@@ -38,8 +38,6 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
     def manipulate_backbone(self, arch_meta):
         self.backbone.manipulate_arch(arch_meta)
 
-
-    # 这个需要重写，应对AugMix
     def forward_train(self, img, gt_label, **kwargs):
         """Forward computation during training.
         Args:
@@ -78,3 +76,104 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
         losses.update(loss)
 
         return losses
+
+
+    def simple_test(self, img, img_metas, **kwargs):
+        """Test without augmentation."""
+        x = self.extract_feat(img)
+        return self.head.simple_test(x, **kwargs)
+
+
+    def forward_train(self, img, gt_label, **kwargs):
+        """Forward computation during training.
+        Args:
+            img (Tensor): of shape (N, C, H, W) encoding input images.
+                Typically these should be mean centered and std scaled.
+            gt_label (Tensor): It should be of shape (N, 1) encoding the
+                ground-truth label of input images for single label task. It
+                shoulf be of shape (N, C) encoding the ground-truth label
+                of input images for multi-labels task.
+        Returns:
+            dict[str, Tensor]: a dictionary of loss components
+        """
+        if self.mixup is not None:
+            img, gt_label = self.mixup(img, gt_label)
+
+        x = self.extract_feat(img)
+
+        losses = dict()
+
+        loss = self.head.forward_train(x, gt_label, **kwargs)
+        losses.update(loss)
+
+        return losses
+
+
+
+    def forward_test(self, imgs, **kwargs):
+        """
+        Args:
+            imgs (List[Tensor]): the outer list indicates test-time
+                augmentations and inner Tensor should have a shape NxCxHxW,
+                which contains all images in the batch.
+        """
+        if isinstance(imgs, torch.Tensor):
+            imgs = [imgs]
+        for var, name in [(imgs, 'imgs')]:
+            if not isinstance(var, list):
+                raise TypeError(f'{name} must be a list, but got {type(var)}')
+
+        if len(imgs) == 1:
+            return self.simple_test(imgs[0], **kwargs)
+        else:
+            raise NotImplementedError('aug_test has not been implemented')
+
+    def forward(self, img, return_loss=True, **kwargs):
+        # Not any change in this function, just make a expression
+        # 在调用model(return_logits=True)的时候，会返回logits，
+        # 本来返回的是score
+        """
+        Calls either forward_train or forward_test depending on whether
+        return_loss=True. Note this setting will change the expected inputs.
+        When `return_loss=True`, img and img_meta are single-nested (i.e.
+        Tensor and List[dict]), and when `resturn_loss=False`, img and img_meta
+        should be double nested (i.e.  List[Tensor], List[List[dict]]), with
+        the outer list indicating test time augmentations.
+        """
+        if return_loss:
+            return self.forward_train(img, **kwargs)
+        else:
+            return self.forward_test(img, **kwargs)
+
+    def train_step(self, data, optimizer, teacher_logits=None):
+        """The iteration step during training.
+        This method defines an iteration step during training, except for the
+        back propagation and optimizer updating, which are done in an optimizer
+        hook. Note that in some complicated cases or models, the whole process
+        including back propagation and optimizer updating are also defined in
+        this method, such as GAN.
+        Args:
+            data (dict): The output of dataloader.
+            optimizer (:obj:`torch.optim.Optimizer` | dict): The optimizer of
+                runner is passed to ``train_step()``. This argument is unused
+                and reserved.
+        Returns:
+            dict: It should contain at least 3 keys: ``loss``, ``log_vars``,
+                ``num_samples``.
+                ``loss`` is a tensor for back propagation, which can be a
+                weighted sum of multiple losses.
+                ``log_vars`` contains all the variables to be sent to the
+                logger.
+                ``num_samples`` indicates the batch size (when the model is
+                DDP, it means the batch size on each GPU), which is used for
+                averaging the logs.
+        """
+        
+        losses = self(**data,teacher_logits=teacher_logits)
+
+        loss, log_vars = self._parse_losses(losses)
+
+        outputs = dict(
+            loss=loss, log_vars=log_vars, num_samples=len(data['img'].data))
+
+        return outputs

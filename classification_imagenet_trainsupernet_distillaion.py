@@ -1,6 +1,4 @@
-# ref a strong augment setting from
-# https://rwightman.github.io/pytorch-image-models/training_hparam_examples/#resnet50-with-jsd-loss-and-randaugment-clean-2x-ra-augs-7904-top-1-9439-top-5
-# resnet50
+# support distillation
 model = dict(
     type='DynamicImageClassifier',
     backbone=dict(
@@ -35,12 +33,7 @@ train_pipeline = [
         std=[58.395, 57.12, 57.375],
         to_rgb=True),
     dict(type='ImageToTensor', keys=['img']),
-    dict(type='ToTensor', keys=['gt_label']),
-    dict(type='AugMix',aug_splits=3),
-    # --aa rand-m9-mstd0.5-inc1  mmcls本身就提供AutoAugment，看看是直接复用mmcls的还是复用这个强baseline的
-    # dict(type='AutoAugment_augmix',aa='rand-m9-mstd0.5-inc1',mode='AugMix')
-    # --remode pixel --reprob 0.6 
-    # dict(type='RandomErasing',remode='pixel',reprob=0.6)
+    dict(type='ToTensor', keys=['
     dict(type='Collect', keys=['img', 'gt_label'])
 ]
 test_pipeline = [
@@ -56,7 +49,7 @@ test_pipeline = [
     dict(type='Collect', keys=['img'])
 ]
 data = dict(
-    samples_per_gpu=64, # -b 64
+    samples_per_gpu=32, # -b 64
     workers_per_gpu=2,
     train=dict(
         type='ImageNet',
@@ -71,32 +64,6 @@ data = dict(
                 mean=[123.675, 116.28, 103.53],
                 std=[58.395, 57.12, 57.375],
                 to_rgb=True),
-            # --remode pixel --reprob 0.6 
-            dict(type='RandomErasing',remode='pixel',reprob=0.6,num_splits=3)
-            dict(type='AugMix',aug_splits=3)
-            # rand-m9-mstd0.5-inc1
-            dict(type='RandAugment',
-                 policies=[
-                     dict(type='AutoContrast',prob=0.5),
-                     dict(type='Equalize',prob=0.5),
-                     dict(type='Invert',prob=0.5),
-                     dict(type='Rotate',prob=0.5),
-                     dict(type='Posterize',prob=0.5),
-                     dict(type='Solarize',prob=0.5),
-                     dict(type='SolarizeAdd',prob=0.5),
-                     dict(type='ColorTransform',prob=0.5),
-                     dict(type='Contrast',prob=0.5),
-                     dict(type='Brightness',prob=0.5),
-                     dict(type='Sharpness',prob=0.5),
-                     dict(type='Shear',prob=0.5,direction='horizontal'),
-                     dict(type='Shear',prob=0.5,direction='vertical'),
-                     dict(type='Translate',prob=0.5,direction='horizontal'),
-                     dict(type='Translate',prob=0.5,direction='vertical')
-                 ],
-                 num_policies=2,
-                 magnitude_level = 27
-                 magnitude_std = 0.5
-            )
             dict(type='ImageToTensor', keys=['img']),
             dict(type='ToTensor', keys=['gt_label']),
             dict(type='Collect', keys=['img', 'gt_label'])
@@ -136,18 +103,16 @@ data = dict(
         ]))
 evaluation = dict(interval=1, metric='accuracy')
 
-# --lr 0.05  momentum 和 weight decay如何设置还得check一下。
-optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=0.0001)
+
+optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 
-# todo
-# --sched cosine 
 lr_config = dict(policy='step', step=[30, 60, 90])
 
 # --epochs 200 这个可能还有点问题，因为那个强baseline打印的时候，epoch数目不是200 是210 好像是有默认的warmup
 # mmcv支持设置warmup 不过因为强baseline里面的不是显示设置的，还得check下它的warmup具体是怎样的。
 # ref: https://github.com/open-mmlab/mmcv/blob/e728608ac9/mmcv/runner/hooks/lr_updater.py(Line 25)
-runner = dict(type='EpochBasedRunner', max_epochs=200)
+runner = dict(type='EpochBasedRunner', max_epochs=100)
 checkpoint_config = dict(interval=1)
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 dist_params = dict(backend='nccl')
@@ -156,9 +121,6 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 
-# 可以查下mmcv.configFromfile的那个API是否支持config里面有if语句。
-augmix = True
-aug_num_split = 3
 
 work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-cls-imagenet-train-supernet'
 stem_width_range = dict(
@@ -204,6 +166,7 @@ R101 = dict({
     'arch.backbone.body.width': [64, 128, 256, 512],
     'arch.backbone.body.depth': [3, 4, 23, 3]
 })
+         
 train_sampler = dict(
     type='concat',
     model_samplers=[

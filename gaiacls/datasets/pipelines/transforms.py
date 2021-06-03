@@ -125,7 +125,7 @@ class RandomErasing(object):
         else:
             assert not mode or mode == 'const'
 
-    def _erase(self, img, chan, img_h, img_w, dtype):
+    def _erase(self, img, img_h, img_w, chan, dtype):
         if random.random() > self.probability:
             return
         area = img_h * img_w
@@ -140,8 +140,8 @@ class RandomErasing(object):
                 if w < img_w and h < img_h:
                     top = random.randint(0, img_h - h)
                     left = random.randint(0, img_w - w)
-                    img[:, top:top + h, left:left + w] = _get_pixels(
-                        self.per_pixel, self.rand_color, (chan, h, w),
+                    img[top:top + h, left:left + w, :] = _get_pixels(
+                        self.per_pixel, self.rand_color, (h, w, chan),
                         dtype=dtype, device=self.device)
                     break
 
@@ -152,7 +152,7 @@ class RandomErasing(object):
             assert img.shape[0] == num_splits*origin_img_channel
             
             for i in range(1,self.num_splits):
-                input = img[i*self.origin_img_channel:(i+1)*self.origin_img_channel, ...] # 赋值是浅拷贝
+                input = img[:,:, i*self.origin_img_channel:(i+1)*self.origin_img_channel] # 赋值是浅拷贝
                 self._erase(input, *input.size(), input.dtype)
                     
         return results

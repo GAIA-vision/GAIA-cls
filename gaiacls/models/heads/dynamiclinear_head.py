@@ -33,8 +33,9 @@ class DynamicLinearClsHead(LinearClsHead):
         # Just change this nn.Linear -> DynamicLinear
         self.fc = DynamicLinear(self.in_channels, self.num_classes)
 
-    # 因为MixAug会导致cls_score的shape和gt_label的shape不匹配，所以要重新做些小修改
-    def loss(self, cls_score, gt_label):
+
+    def loss(self, cls_score, gt_label, teacher_logits=None, **kwargs):
+        
         num_samples = len(cls_score)
         losses = dict()
         # compute loss
@@ -44,4 +45,34 @@ class DynamicLinearClsHead(LinearClsHead):
         assert len(acc) == len(self.topk)
         losses['loss'] = loss
         losses['accuracy'] = {f'top-{k}': a for k, a in zip(self.topk, acc)}
-        return losses   
+
+        # 这个感觉还不能像BigNas那种按照小模型有蒸馏的时候不对小网络用
+        # gt进行监督，因为我们这里每次前传用的是不同的data...
+        if teacher_logits != None
+            T = 2
+            teacher_score = F.softmax(teacher_logits/T, dim=1)
+            student_score = F.softmax(cls_score/T, dim=1)
+            loss['loss'] += KLDivLoss()(teacher_score, student_score)
+        return losses
+
+    def simple_test(self, img, **kwargs):
+        """Test without augmentation."""
+        cls_score = self.fc(img)
+        
+        if kwargs.get('return_logits',False):
+            return cls_score
+        
+        if isinstance(cls_score, list):
+            cls_score = sum(cls_score) / float(len(cls_score))
+        pred = F.softmax(cls_score, dim=1) if cls_score is not None else None
+        if torch.onnx.is_in_onnx_export():
+            return pred
+        pred = list(pred.detach().cpu().numpy())
+        return pred
+
+    def forward_train(self, x, gt_label, **kwargs):
+        cls_score = self.fc(x)
+        
+        losses = self.loss(cls_score, gt_label, **kwargs)    
+        else:
+            return losses

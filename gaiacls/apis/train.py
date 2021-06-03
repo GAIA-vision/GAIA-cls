@@ -1,11 +1,15 @@
+# standard lib
 import random
 import warnings
 
+# 3rd-party lib
 import numpy as np
 import torch
+from torch.nn.modules.batchnorm import _BatchNorm
+
+# mm lib
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import DistSamplerSeedHook, build_optimizer, build_runner
-
 from mmcls.core import DistOptimizerHook
 from mmcls.datasets import build_dataloader, build_dataset
 from mmcls.utils import get_root_logger
@@ -34,12 +38,10 @@ from gaiavision.core import ManipulateArchHook
 
 # local lib
 from ..core.evaluation import CrossArchEvalHook, DistCrossArchEvalHook
-# from ..datasets import AugMixDataset_collate_fn
-
-# from ..datasets import build_dataset, UniConcatDataset
+from ..utils import convert_splitbn_model
 
 # registry new file
-import gaiacls
+import gaiacls 
 
 def set_random_seed(seed, deterministic=False):
     """Set random seed.
@@ -184,4 +186,8 @@ def train_model(model,
                     m.running_var.fill_(1)
             model.apply(clean_bn_stats)
 
+    split_bn = cfg.get('split_bn',None)
+    if split_bn:
+        num_aug_splits = cfg.get('num_aug_splits',3)
+        model = convert_splitbn_model(model,num_aug_splits)
     runner.run(data_loaders, cfg.workflow)
