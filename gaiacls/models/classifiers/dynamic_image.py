@@ -20,7 +20,7 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
                  head=None,
                  pretrained=None,
                  train_cfg=None,
-                 aug_mix_used=False,
+                 augmix_used=False,
                  aug_split_num=None):
         super(DynamicImageClassifier,self).__init__(
                 backbone,
@@ -29,16 +29,16 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
                 pretrained=pretrained,
                 train_cfg=train_cfg)
 
-        self.aug_mix_used=aug_mix_used
+        self.augmix_used=augmix_used
         self.aug_split_num=aug_split_num
         
-        if self.aug_mix_used:
+        if self.augmix_used:
             assert aug_split_num is not None
 
     def manipulate_backbone(self, arch_meta):
         self.backbone.manipulate_arch(arch_meta)
 
-    def forward_train(self, img, gt_label, **kwargs):
+    def forward_train(self, img, gt_label, teacher_logits=None, **kwargs):
         """Forward computation during training.
         Args:
             img (Tensor): of shape (N, C, H, W) encoding input images.
@@ -51,7 +51,7 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
             dict[str, Tensor]: a dictionary of loss components
         """
         
-        if(self.aug_mix_used):
+        if(self.augmix_used):
             
             batch_size,C,H,W = img.shape
             original_channel_num = C // self.aug_split_num
@@ -72,7 +72,9 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
         x = self.extract_feat(img)
 
         losses = dict()
-        loss = self.head.forward_train(x, gt_label)
+        
+        loss = self.head.forward_train(x, gt_label, teacher_logits=teacher_logits, **kwargs)
+        
         losses.update(loss)
 
         return losses
@@ -82,31 +84,6 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
         """Test without augmentation."""
         x = self.extract_feat(img)
         return self.head.simple_test(x, **kwargs)
-
-
-    def forward_train(self, img, gt_label, **kwargs):
-        """Forward computation during training.
-        Args:
-            img (Tensor): of shape (N, C, H, W) encoding input images.
-                Typically these should be mean centered and std scaled.
-            gt_label (Tensor): It should be of shape (N, 1) encoding the
-                ground-truth label of input images for single label task. It
-                shoulf be of shape (N, C) encoding the ground-truth label
-                of input images for multi-labels task.
-        Returns:
-            dict[str, Tensor]: a dictionary of loss components
-        """
-        if self.mixup is not None:
-            img, gt_label = self.mixup(img, gt_label)
-
-        x = self.extract_feat(img)
-
-        losses = dict()
-
-        loss = self.head.forward_train(x, gt_label, **kwargs)
-        losses.update(loss)
-
-        return losses
 
 
 
@@ -140,12 +117,14 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
         should be double nested (i.e.  List[Tensor], List[List[dict]]), with
         the outer list indicating test time augmentations.
         """
+        #import pdb
+        #pdb.set_trace()
         if return_loss:
             return self.forward_train(img, **kwargs)
         else:
             return self.forward_test(img, **kwargs)
 
-    def train_step(self, data, optimizer, teacher_logits=None):
+    def train_step(self, data, optimizer, teacher_logits=None, **kwargs):
         """The iteration step during training.
         This method defines an iteration step during training, except for the
         back propagation and optimizer updating, which are done in an optimizer
@@ -169,7 +148,7 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
                 averaging the logs.
         """
         
-        losses = self(**data,teacher_logits=teacher_logits)
+        losses = self(**data, teacher_logits=teacher_logits, **kwargs)
 
         loss, log_vars = self._parse_losses(losses)
 

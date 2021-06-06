@@ -57,28 +57,6 @@ class AugMix(object):
         repr_str = self.__class__.__name__
         return repr_str
 
-# 因为本身mmcls的AutoAugment已经注册过了，所以不能再用这个名字
-# 这里加个后缀_augmix
-# 还得check下mmcls的AutoAugment和pytorch image models的那个AutoAugment是否可以互相替代
-@PIPELINES.register_module()
-class AutoAugment_augmix(object):
-    """
-    """
-    def __init__(self,):
-        pass
-
-    def __call__(self,):
-        
-        pass
-        return results
-
-    def __repr__(self):
-        
-        repr_str = self.__class__.__name__
-        pass
-    
-        return repr_str
-
 
 @PIPELINES.register_module()
 class RandomErasing(object):
@@ -142,18 +120,24 @@ class RandomErasing(object):
                     left = random.randint(0, img_w - w)
                     img[top:top + h, left:left + w, :] = _get_pixels(
                         self.per_pixel, self.rand_color, (h, w, chan),
-                        dtype=dtype, device=self.device)
+                        dtype=dtype)
                     break
 
     def __call__(self, results):
-
+        
         for key in results.get('img_fields', ['img']):
             img = results[key]
-            assert img.shape[0] == num_splits*origin_img_channel
-            
-            for i in range(1,self.num_splits):
-                input = img[:,:, i*self.origin_img_channel:(i+1)*self.origin_img_channel] # 赋值是浅拷贝
-                self._erase(input, *input.size(), input.dtype)
+            assert img.shape[-1] == self.num_splits*self.origin_img_channel
+
+            if(self.num_splits == 1):
+                input = img
+                self._erase(input, *input.shape, input.dtype)
+            else:
+                # Only add random erasing in extra image, if wanna add it in all splits, just
+                # make this transform before AugMix in the configfile.
+                for i in range(1,self.num_splits):
+                    input = img[:,:, i*self.origin_img_channel:(i+1)*self.origin_img_channel] # 赋值是浅拷贝
+                    self._erase(input, *input.shape, input.dtype)
                     
         return results
 

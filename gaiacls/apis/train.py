@@ -190,4 +190,7 @@ def train_model(model,
     if split_bn:
         num_aug_splits = cfg.get('num_aug_splits',3)
         model = convert_splitbn_model(model,num_aug_splits)
-    runner.run(data_loaders, cfg.workflow)
+
+    maxnet_config = cfg.get('MAX_NET',None)
+
+    runner.run(data_loaders, cfg.workflow, maxnet_config=maxnet_config)

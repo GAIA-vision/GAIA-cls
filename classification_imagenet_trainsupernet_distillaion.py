@@ -18,7 +18,7 @@ model = dict(
         type='DynamicLinearClsHead',
         num_classes=1000,
         in_channels=2048,
-        loss=dict(type='JsdCrossEntropyLoss', num_splits=3, loss_weight=1.0),
+        loss=dict(type='CrossEntropyLoss', loss_weight=1.0),
         topk=(1, 5)))
 dataset_type = 'ImageNet'
 img_norm_cfg = dict(
@@ -27,24 +27,16 @@ train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='RandomResizedCrop', size=224),
     dict(type='RandomFlip', flip_prob=0.5, direction='horizontal'),
-    dict(
-        type='Normalize',
-        mean=[123.675, 116.28, 103.53],
-        std=[58.395, 57.12, 57.375],
-        to_rgb=True),
+    dict(type='Normalize', **img_norm_cfg),
     dict(type='ImageToTensor', keys=['img']),
-    dict(type='ToTensor', keys=['
+    dict(type='ToTensor', keys=['gt_label']),
     dict(type='Collect', keys=['img', 'gt_label'])
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', size=(256, -1)),
     dict(type='CenterCrop', crop_size=224),
-    dict(
-        type='Normalize',
-        mean=[123.675, 116.28, 103.53],
-        std=[58.395, 57.12, 57.375],
-        to_rgb=True),
+    dict(type='Normalize', **img_norm_cfg),
     dict(type='ImageToTensor', keys=['img']),
     dict(type='Collect', keys=['img'])
 ]
@@ -109,10 +101,8 @@ optimizer_config = dict(grad_clip=None)
 
 lr_config = dict(policy='step', step=[30, 60, 90])
 
-# --epochs 200 这个可能还有点问题，因为那个强baseline打印的时候，epoch数目不是200 是210 好像是有默认的warmup
-# mmcv支持设置warmup 不过因为强baseline里面的不是显示设置的，还得check下它的warmup具体是怎样的。
-# ref: https://github.com/open-mmlab/mmcv/blob/e728608ac9/mmcv/runner/hooks/lr_updater.py(Line 25)
-runner = dict(type='EpochBasedRunner', max_epochs=100)
+# 使用蒸馏的pipeline
+runner = dict(type='EpochBasedRunnerWithdistill', max_epochs=100)
 checkpoint_config = dict(interval=1)
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
 dist_params = dict(backend='nccl')
@@ -136,12 +126,15 @@ body_depth_range = dict(
     start=[2, 2, 5, 2],
     end=[3, 4, 23, 3],
     step=[1, 2, 2, 1])
-MAX = dict({
-    'name': 'MAX',
+
+# 蒸馏必须显式制定，感觉放入到EpochBasedRunnerWithDistill里面比较合适。。。
+# to do（）
+MAX_NET = dict({
     'arch.backbone.stem.width': 64,
     'arch.backbone.body.width': [64, 128, 256, 512],
     'arch.backbone.body.depth': [3, 4, 23, 3]
 })
+
 MIN = dict({
     'name': 'MIN',
     'arch.backbone.stem.width': 32,
@@ -172,18 +165,18 @@ train_sampler = dict(
     model_samplers=[
         dict(
             type='anchor',
-            anchors=[
-                dict({
-                    'name': 'MIN',
-                    'arch.backbone.stem.width': 32,
-                    'arch.backbone.body.width': [48, 96, 192, 384],
-                    'arch.backbone.body.depth': [2, 2, 5, 2]
-                }),
+            anchors=[ 
                 dict({
                     'name': 'R101',
                     'arch.backbone.stem.width': 64,
                     'arch.backbone.body.width': [64, 128, 256, 512],
                     'arch.backbone.body.depth': [3, 4, 23, 3]
+                }),
+                dict({
+                    'name': 'MIN',
+                    'arch.backbone.stem.width': 32,
+                    'arch.backbone.body.width': [48, 96, 192, 384],
+                    'arch.backbone.body.depth': [2, 2, 5, 2]
                 }),
                 dict({
                     'name': 'R77',

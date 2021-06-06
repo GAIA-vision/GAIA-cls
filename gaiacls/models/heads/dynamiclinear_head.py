@@ -35,24 +35,28 @@ class DynamicLinearClsHead(LinearClsHead):
 
 
     def loss(self, cls_score, gt_label, teacher_logits=None, **kwargs):
-        
-        num_samples = len(cls_score)
-        losses = dict()
-        # compute loss
-        loss = self.compute_loss(cls_score, gt_label, avg_factor=num_samples)
-        # compute accuracy
-        acc = self.compute_accuracy(cls_score, gt_label)
-        assert len(acc) == len(self.topk)
-        losses['loss'] = loss
-        losses['accuracy'] = {f'top-{k}': a for k, a in zip(self.topk, acc)}
 
-        # 这个感觉还不能像BigNas那种按照小模型有蒸馏的时候不对小网络用
-        # gt进行监督，因为我们这里每次前传用的是不同的data...
-        if teacher_logits != None
+        #import pdb
+        #pdb.set_trace()
+        # 在有AugMix的时候，相当于对于超网是正常的AugMix训练，对于子网，所有图像都是按照蒸馏进行训练
+        if teacher_logits is not None:
             T = 2
             teacher_score = F.softmax(teacher_logits/T, dim=1)
             student_score = F.softmax(cls_score/T, dim=1)
-            loss['loss'] += KLDivLoss()(teacher_score, student_score)
+            # 这个是不是需要cai裁剪一下，KLDivergence在两个分布差别很大的时候梯度好像是有问题的。
+            losses['loss'] += torch.nn.KLDivLoss()(teacher_score, student_score)        
+
+        else:
+            num_samples = len(cls_score)
+            losses = dict()
+            # compute loss
+            loss = self.compute_loss(cls_score, gt_label, avg_factor=num_samples)
+            # compute accuracy
+            acc = self.compute_accuracy(cls_score, gt_label)
+            assert len(acc) == len(self.topk)
+            losses['loss'] = loss
+            losses['accuracy'] = {f'top-{k}': a for k, a in zip(self.topk, acc)}
+
         return losses
 
     def simple_test(self, img, **kwargs):
@@ -70,9 +74,9 @@ class DynamicLinearClsHead(LinearClsHead):
         pred = list(pred.detach().cpu().numpy())
         return pred
 
-    def forward_train(self, x, gt_label, **kwargs):
+    def forward_train(self, x, gt_label, teacher_logits=None, **kwargs):
         cls_score = self.fc(x)
         
         losses = self.loss(cls_score, gt_label, **kwargs)    
-        else:
-            return losses
+        
+        return losses

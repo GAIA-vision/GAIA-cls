@@ -1,8 +1,37 @@
 # ref a strong augment setting from
 # https://rwightman.github.io/pytorch-image-models/training_hparam_examples/#resnet50-with-jsd-loss-and-randaugment-clean-2x-ra-augs-7904-top-1-9439-top-5
 # resnet50
+# 可以查下mmcv.configFromfile的那个API是否支持config里面有if语句。
+# rand-m9-mstd0.5-inc1
+'''s
+dict(type='RandAugment',
+     policies=[
+         dict(type='AutoContrast',prob=0.5),
+         dict(type='Equalize',prob=0.5),
+         dict(type='Invert',prob=0.5),
+         dict(type='Rotate',prob=0.5),
+         dict(type='Posterize',prob=0.5),
+         dict(type='Solarize',prob=0.5),
+         dict(type='SolarizeAdd',prob=0.5),
+         dict(type='ColorTransform',prob=0.5),
+         dict(type='Contrast',prob=0.5),
+         dict(type='Brightness',prob=0.5),
+         dict(type='Sharpness',prob=0.5),
+         dict(type='Shear',prob=0.5,direction='horizontal'),
+         dict(type='Shear',prob=0.5,direction='vertical'),
+         dict(type='Translate',prob=0.5,direction='horizontal'),
+         dict(type='Translate',prob=0.5,direction='vertical')
+     ],
+     num_policies=2,
+     magnitude_level = 27
+     magnitude_std = 0.5
+)'''
+aug_num_split = 3
+split_bn = False
 model = dict(
     type='DynamicImageClassifier',
+    augmix_used = True,
+    aug_split_num = 3,
     backbone=dict(
         type='DynamicResNet',
         in_channels=3,
@@ -20,7 +49,7 @@ model = dict(
         type='DynamicLinearClsHead',
         num_classes=1000,
         in_channels=2048,
-        loss=dict(type='JsdCrossEntropyLoss', num_splits=3, loss_weight=1.0),
+        loss=dict(type='JsdCrossEntropyLoss', num_splits=aug_num_split, loss_weight=1.0),
         topk=(1, 5)))
 dataset_type = 'ImageNet'
 img_norm_cfg = dict(
@@ -36,7 +65,7 @@ train_pipeline = [
         to_rgb=True),
     dict(type='ImageToTensor', keys=['img']),
     dict(type='ToTensor', keys=['gt_label']),
-    dict(type='AugMix',aug_splits=3),
+    dict(type='AugMix',aug_splits=aug_num_split),
     # --aa rand-m9-mstd0.5-inc1  mmcls本身就提供AutoAugment，看看是直接复用mmcls的还是复用这个强baseline的
     # dict(type='AutoAugment_augmix',aa='rand-m9-mstd0.5-inc1',mode='AugMix')
     # --remode pixel --reprob 0.6 
@@ -71,32 +100,9 @@ data = dict(
                 mean=[123.675, 116.28, 103.53],
                 std=[58.395, 57.12, 57.375],
                 to_rgb=True),
+            dict(type='AugMix',aug_splits=3),
             # --remode pixel --reprob 0.6 
-            dict(type='RandomErasing',remode='pixel',reprob=0.6,num_splits=3)
-            dict(type='AugMix',aug_splits=3)
-            # rand-m9-mstd0.5-inc1
-            dict(type='RandAugment',
-                 policies=[
-                     dict(type='AutoContrast',prob=0.5),
-                     dict(type='Equalize',prob=0.5),
-                     dict(type='Invert',prob=0.5),
-                     dict(type='Rotate',prob=0.5),
-                     dict(type='Posterize',prob=0.5),
-                     dict(type='Solarize',prob=0.5),
-                     dict(type='SolarizeAdd',prob=0.5),
-                     dict(type='ColorTransform',prob=0.5),
-                     dict(type='Contrast',prob=0.5),
-                     dict(type='Brightness',prob=0.5),
-                     dict(type='Sharpness',prob=0.5),
-                     dict(type='Shear',prob=0.5,direction='horizontal'),
-                     dict(type='Shear',prob=0.5,direction='vertical'),
-                     dict(type='Translate',prob=0.5,direction='horizontal'),
-                     dict(type='Translate',prob=0.5,direction='vertical')
-                 ],
-                 num_policies=2,
-                 magnitude_level = 27
-                 magnitude_std = 0.5
-            )
+            dict(type='RandomErasing',mode='pixel',probability=0.6,num_splits=3),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='ToTensor', keys=['gt_label']),
             dict(type='Collect', keys=['img', 'gt_label'])
@@ -156,9 +162,7 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 
-# 可以查下mmcv.configFromfile的那个API是否支持config里面有if语句。
-augmix = True
-aug_num_split = 3
+
 
 work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-cls-imagenet-train-supernet'
 stem_width_range = dict(
