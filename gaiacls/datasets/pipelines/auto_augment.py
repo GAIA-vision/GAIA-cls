@@ -9,7 +9,7 @@ from mmcls.datasets.builder import PIPELINES
 from mmcls.datasets.pipelines.compose import Compose
 
 @PIPELINES.register_module()
-class RandAugment(object):
+class RandAugment_augmix(object):
     """Random augmentation. This data augmentation is proposed in `RandAugment:
     Practical automated data augmentation with a reduced search space.
     <https://arxiv.org/abs/1909.13719>`_.
