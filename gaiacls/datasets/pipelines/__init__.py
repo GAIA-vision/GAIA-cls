@@ -1,3 +1,4 @@
-from .transforms import (AugMix, AutoAugment_augmix, RandomErasing)
+from .transforms import (AugMix, RandomErasing_augmix, Normalize_augmix)
+from .auto_augment import RandAugment_augmix
 
-__all__ = ['AugMix', 'AutoAugment_augmix', 'RandomErasing']
+__all__ = ['AugMix', 'RandomErasing_augmix','RandAugment_augmix']

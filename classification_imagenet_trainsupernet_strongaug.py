@@ -2,30 +2,33 @@
 # https://rwightman.github.io/pytorch-image-models/training_hparam_examples/#resnet50-with-jsd-loss-and-randaugment-clean-2x-ra-augs-7904-top-1-9439-top-5
 # resnet50
 # 可以查下mmcv.configFromfile的那个API是否支持config里面有if语句。
-# rand-m9-mstd0.5-inc1
-'''s
-dict(type='RandAugment',
-     policies=[
-         dict(type='AutoContrast',prob=0.5),
-         dict(type='Equalize',prob=0.5),
-         dict(type='Invert',prob=0.5),
-         dict(type='Rotate',prob=0.5),
-         dict(type='Posterize',prob=0.5),
-         dict(type='Solarize',prob=0.5),
-         dict(type='SolarizeAdd',prob=0.5),
-         dict(type='ColorTransform',prob=0.5),
-         dict(type='Contrast',prob=0.5),
-         dict(type='Brightness',prob=0.5),
-         dict(type='Sharpness',prob=0.5),
-         dict(type='Shear',prob=0.5,direction='horizontal'),
-         dict(type='Shear',prob=0.5,direction='vertical'),
-         dict(type='Translate',prob=0.5,direction='horizontal'),
-         dict(type='Translate',prob=0.5,direction='vertical')
-     ],
-     num_policies=2,
-     magnitude_level = 27
-     magnitude_std = 0.5
-)'''
+'''
+          # rand-m9-mstd0.5-inc1
+            dict(type='RandAugment_augmix',
+                policies=[
+                    dict(type='AutoContrast',prob=0.5),
+                    dict(type='Equalize',prob=0.5),
+                    dict(type='Invert',prob=0.5),
+                    dict(type='Rotate',prob=0.5,angle=90.0),
+                    dict(type='Posterize',bits=6,prob=0.5),
+                    dict(type='Solarize',prob=0.5,thr=128),
+                    dict(type='SolarizeAdd',prob=0.5,magnitude=9),
+                    dict(type='ColorTransform',prob=0.5,magnitude=9),
+                    dict(type='Contrast',prob=0.5,magnitude=9),
+                    dict(type='Brightness',prob=0.5,magnitude=9),
+                    dict(type='Sharpness',prob=0.5,magnitude=9),
+                    dict(type='Shear',prob=0.5,direction='horizontal',magnitude=9),
+                    dict(type='Shear',prob=0.5,direction='vertical',magnitude=9),
+                    dict(type='Translate',prob=0.5,direction='horizontal',magnitude=9),
+                    dict(type='Translate',prob=0.5,direction='vertical',magnitude=9)
+                ],
+                num_policies=2,
+                magnitude_level = 27,
+                num_splits=3,
+                origin_img_channel=3,
+                magnitude_std = 0.5
+                ),
+'''
 aug_num_split = 3
 split_bn = False
 model = dict(
@@ -85,7 +88,7 @@ test_pipeline = [
     dict(type='Collect', keys=['img'])
 ]
 data = dict(
-    samples_per_gpu=64, # -b 64
+    samples_per_gpu=16, # -b 64
     workers_per_gpu=2,
     train=dict(
         type='ImageNet',
@@ -95,14 +98,41 @@ data = dict(
             dict(type='LoadImageFromFile'),
             dict(type='RandomResizedCrop', size=224),
             dict(type='RandomFlip', flip_prob=0.5, direction='horizontal'),
+            dict(type='AugMix',aug_splits=3),
+          # rand-m9-mstd0.5-inc1
+            dict(type='RandAugment_augmix',
+                policies=[
+                    dict(type='AutoContrast',prob=0.5),
+                    dict(type='Equalize',prob=0.5),
+                    dict(type='Invert',prob=0.5),
+                    dict(type='Rotate',prob=0.5,angle=90.0),
+                    dict(type='Posterize',bits=6,prob=0.5),
+                    dict(type='Solarize',prob=0.5,thr=128),
+                    dict(type='SolarizeAdd',prob=0.5,magnitude=9),
+                    dict(type='ColorTransform',prob=0.5,magnitude=9),
+                    dict(type='Contrast',prob=0.5,magnitude=9),
+                    dict(type='Brightness',prob=0.5,magnitude=9),
+                    dict(type='Sharpness',prob=0.5,magnitude=9),
+                    dict(type='Shear',prob=0.5,direction='horizontal',magnitude=9),
+                    dict(type='Shear',prob=0.5,direction='vertical',magnitude=9),
+                    dict(type='Translate',prob=0.5,direction='horizontal',magnitude=9),
+                    dict(type='Translate',prob=0.5,direction='vertical',magnitude=9)
+                ],
+                num_policies=2,
+                magnitude_level = 27,
+                num_splits=3,
+                origin_img_channel=3,
+                magnitude_std = 0.5
+            ),  
+            # --remode pixel --reprob 0.6 
+            dict(type='RandomErasing_augmix',mode='pixel',probability=0.6,num_splits=3,origin_img_channel=3), 
             dict(
-                type='Normalize',
+                type='Normalize_augmix',
                 mean=[123.675, 116.28, 103.53],
                 std=[58.395, 57.12, 57.375],
-                to_rgb=True),
-            dict(type='AugMix',aug_splits=3),
-            # --remode pixel --reprob 0.6 
-            dict(type='RandomErasing',mode='pixel',probability=0.6,num_splits=3),
+                to_rgb=True,
+                num_splits=3,
+                origin_img_channel=3),
             dict(type='ImageToTensor', keys=['img']),
             dict(type='ToTensor', keys=['gt_label']),
             dict(type='Collect', keys=['img', 'gt_label'])

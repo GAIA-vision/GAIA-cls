@@ -57,9 +57,11 @@ class AugMix(object):
         repr_str = self.__class__.__name__
         return repr_str
 
-
+# to do change from mmcls（）
+#  这个从pytorch_imgage_models里面改的有点问题，它是在image已经是（0,1）的基础上进行的
+#  跟mmcls的接口不统一，这个在mmlab里面是按照放在normalize之前的，所以mmlab里面重写了一下RandomErasing。
 @PIPELINES.register_module()
-class RandomErasing(object):
+class RandomErasing_augmix(object):
     """
         refer from: https://github.com/rwightman/pytorch-image-models/blob/master/timm/data/random_erasing.py
         Randomly selects a rectangle region in an image and erases its pixels.
@@ -142,7 +144,47 @@ class RandomErasing(object):
         return results
 
 
+@PIPELINES.register_module()
+class Normalize_augmix(object):
+    """Normalize the image.
+    Args:
+        mean (sequence): Mean values of 3 channels.
+        std (sequence): Std values of 3 channels.
+        to_rgb (bool): Whether to convert the image from BGR to RGB,
+            default is true.
+    """
 
+    def __init__(self, mean, std, to_rgb=True, num_splits=1, origin_img_channel=3):
+        self.mean = np.array(mean, dtype=np.float32)
+        self.std = np.array(std, dtype=np.float32)
+        self.to_rgb = to_rgb
+        self.num_splits = num_splits
+        self.origin_img_channel = origin_img_channel
+
+    def __call__(self, results):
+        for key in results.get('img_fields', ['img']):
+            
+            assert results[key].shape[-1] == self.num_splits*self.origin_img_channel
+            img_list = []
+            for i in range(self.num_splits):
+                start = i*self.origin_img_channel
+                end = start + self.origin_img_channel
+                
+                temp_result = mmcv.imnormalize(results[key][:,:,start:end], self.mean, self.std,
+                                            self.to_rgb)
+                img_list.append(temp_result)
+        results[key] = np.concatenate(img_list,axis=-1)
+        
+        results['img_norm_cfg'] = dict(
+            mean=self.mean, std=self.std, to_rgb=self.to_rgb)
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        repr_str += f'(mean={list(self.mean)}, '
+        repr_str += f'std={list(self.std)}, '
+        repr_str += f'to_rgb={self.to_rgb})'
+        return repr_str
 
 
 

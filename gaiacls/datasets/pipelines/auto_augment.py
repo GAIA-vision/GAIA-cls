@@ -8,6 +8,7 @@ import numpy as np
 from mmcls.datasets.builder import PIPELINES
 from mmcls.datasets.pipelines.compose import Compose
 
+# RandAugment的使用得放在normalize之前，这个细节得注意
 @PIPELINES.register_module()
 class RandAugment_augmix(object):
     """Random augmentation. This data augmentation is proposed in `RandAugment:
