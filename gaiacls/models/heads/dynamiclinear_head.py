@@ -43,7 +43,7 @@ class DynamicLinearClsHead(LinearClsHead):
             T = 2
             teacher_score = F.softmax(teacher_logits/T, dim=1)
             student_score = F.softmax(cls_score/T, dim=1)
-            # 这个是不是需要cai裁剪一下，KLDivergence在两个分布差别很大的时候梯度好像是有问题的。
+            # 这个是不是需要裁剪一下，KLDivergence在两个分布差别很大的时候梯度好像是有问题的。
             losses['loss'] += torch.nn.KLDivLoss()(teacher_score, student_score)        
 
         else:
