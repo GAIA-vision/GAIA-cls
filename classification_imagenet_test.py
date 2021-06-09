@@ -1,104 +1,164 @@
-# dataset settings
-# model settings
-model = dict(
-    type='ImageClassifier',
-    backbone=dict(
-        type='ResNet',
-        depth=101,
-        num_stages=4,
-        out_indices=(3, ),
-        style='pytorch'),
-    neck=dict(type='GlobalAveragePooling'),
-    head=dict(
-        type='LinearClsHead',
-        num_classes=1000,
-        in_channels=2048,
-        loss=dict(type='CrossEntropyLoss', loss_weight=1.0),
-        topk=(1, 5),
-    ))
-dataset_type = 'ImageNet'
-img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
-train_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='RandomResizedCrop', size=224),
-    dict(type='RandomFlip', flip_prob=0.5, direction='horizontal'),
-    dict(type='Normalize', **img_norm_cfg),
-    dict(type='ImageToTensor', keys=['img']),
-    dict(type='ToTensor', keys=['gt_label']),
-    dict(type='Collect', keys=['img', 'gt_label'])
-]
-test_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='Resize', size=(256, -1)),
-    dict(type='CenterCrop', crop_size=224),
-    dict(type='Normalize', **img_norm_cfg),
-    dict(type='ImageToTensor', keys=['img']),
-    dict(type='Collect', keys=['img'])
-]
-data = dict(
-    samples_per_gpu=32,
-    workers_per_gpu=2,
-    train=dict(
-        type=dataset_type,
-        data_prefix='/mnt/diske/qing_chang/Data/ImageNet/ILSVRC2012_img_train',
-        ann_file='/mnt/diske/qing_chang/Data/ImageNet/train_labeled.txt',
-        pipeline=train_pipeline),
-    val=dict(
-        type=dataset_type,
-        data_prefix='/mnt/diske/qing_chang/Data/ImageNet/ILSVRC2012_img_val',
-        ann_file='/mnt/diske/qing_chang/Data/ImageNet/val_labeled.txt',
-        pipeline=test_pipeline),
-    test=dict(
-        # replace `data/val` with `data/test` for standard test
-        type=dataset_type,
-        data_prefix='/mnt/diske/qing_chang/Data/ImageNet/ILSVRC2012_img_val',
-        ann_file='/mnt/diske/qing_chang/Data/ImageNet/val_labeled.txt',
-        pipeline=test_pipeline))
+# standard lib
+import os
+import sys
+import pdb
+import os.path as osp
+import argparse
+import json
+import time
+import shutil
+import hashlib
+from collections.abc import Sequence
+from copy import deepcopy
+from pprint import pprint
 
-evaluation = dict(interval=1, metric='accuracy')
-# optimizer
-optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
-optimizer_config = dict(grad_clip=None)
-# learning policy
-lr_config = dict(policy='step', step=[30, 60, 90])
-runner = dict(type='EpochBasedRunner', max_epochs=100)
-  
-# checkpoint saving
-checkpoint_config = dict(interval=1)
-# yapf:disable
-log_config = dict(
-    interval=100,
-    hooks=[
-        dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook')
-    ])
-# yapf:enable
+# 3rd party lib
+import torch
+import torch.distributed as dist
+from tqdm import tqdm
 
-dist_params = dict(backend='nccl')
-log_level = 'INFO'
-load_from = None
-resume_from = None
-workflow = [('train', 1)]
-work_dir = '/mnt/diske/qing_chang/GAIA/workdirs/gaia-clas-imagenet-test'
+# mm lib
+import mmcv
+from mmcv import Config
+from mmcv.runner import get_dist_info, init_dist, save_checkpoint
+from mmseg.models import build_segmentor
+from mmseg.apis import init_segmentor
 
-val_sampler = dict(
-    type='anchor',
-    anchors=[
-        dict({
-            'name': 'R101',
-            'arch.backbone.stem.width': 64,
-            'arch.backbone.body.width': [64, 128, 256, 512],
-            'arch.backbone.body.depth': [3, 4, 23, 3]
-        })
-    ])
-train_sampler = dict(
-    type='anchor',
-    anchors=[
-        dict({
-            'name': 'R101',
-            'arch.backbone.stem.width': 64,
-            'arch.backbone.body.width': [64, 128, 256, 512],
-            'arch.backbone.body.depth': [3, 4, 23, 3]
-        })
-    ])
+# gaia lib
+import gaiavision
+import gaiaseg
+from gaiavision.utils import FCMapLabelSurgeon
+from gaiavision.label_space import LabelMapping
+from gaiavision.model_space import build_model_sampler, fold_dict
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Conduct surgury on a model checkpoint.')
+    parser.add_argument('src_ckpt', help='source checkpoint file path')
+    parser.add_argument('out_dir', help='output directory')
+    parser.add_argument('config', help='train config file path')
+    parser.add_argument('--label_mapping_path', help='train config file path')
+    parser.add_argument('--random_map', action='store_true')
+    parser.add_argument(
+        '--launcher',
+        choices=['none', 'pytorch', 'slurm', 'mpi'],
+        default='none',
+        help='job launcher')
+    parser.add_argument('--local_rank', type=int, default=0)
+
+
+    args = parser.parse_args()
+    assert os.path.exists(args.src_ckpt), f'`{args.src_ckpt}` not existed.'
+    # assert os.path.exists(args.label_mapping_path), f'`{args.label_mapping_path}` not existed.'
+    return args
+
+
+def prepare_cfg(cfg):
+    # substitute dyn_bn for dyn_sync_bn
+    model = cfg['model']
+    for name in ('backbone', 'decode_head', 'auxiliary_head'):
+        m = model.get(name, None)
+        if m is not None:
+            if 'norm_cfg' in m.keys():
+                m['norm_cfg'] = dict(type='DynBN')
+    return cfg
+
+
+def main():
+    args = parse_args()
+    print('-- Args:')
+    pprint(args)
+    ckpt = torch.load(args.src_ckpt, map_location='cpu')
+    #pdb.set_trace()
+    if 'LOCAL_RANK' not in os.environ:
+        os.environ['LOCAL_RANK'] = str(args.local_rank)
+    #pdb.set_trace()
+    # abandon sync bn
+    cfg = Config.fromfile(args.config)
+    cfg = prepare_cfg(cfg)
+
+    # init distributed env first.
+    if args.launcher == 'none':
+        distributed = False
+        # 后面的代码都是按照distributed 是True写的，不指定rank和world size会报错
+        rank = 0
+        world_size = 1
+    else:
+        distributed = True
+        init_dist(args.launcher, **cfg.dist_params)
+        # re-set gpu_ids with distributed training mode
+        rank, world_size = get_dist_info()
+        cfg.gpu_ids = range(world_size)
+    #pdb.set_trace()
+    # prepare model
+    model = build_segmentor(
+        cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
+    _ = mmcv.runner.load_checkpoint(model, args.src_ckpt,map_location='cpu')
+    #model = init_segmentor(args.config, args.src_ckpt,device='cuda:0')
+    #pdb.set_trace()
+    if torch.cuda.is_available():
+        model.cuda()
+    model.eval()
+    model.deploy()
+
+    if hasattr(model, 'forward_dummy'):
+        model.forward = model.forward_dummy
+    else:
+        raise NotImplementedError(
+            'FLOPs counter is currently not currently supported with {}'.
+            format(model.__class__.__name__))
+
+    # prepare model sampler
+    model_sampler = build_model_sampler(cfg.train_sampler)
+    model_sampler.set_mode('traverse')
+    all_metas = list(model_sampler.traverse())
+    metas_per_rank = all_metas[rank::world_size]
+
+    if rank == 0:
+        pbar = tqdm(total=len(metas_per_rank))
+        interval = min(max(len(metas_per_rank) // 100, 1), 10)
+    for n, model_meta in enumerate(metas_per_rank):
+        model_meta = fold_dict(model_meta)
+        arch_meta = model_meta['arch']
+        data_meta = model_meta['data']
+        model.manipulate_arch(arch_meta)
+        deployed_model = deepcopy(model)
+
+        input_shape = data_meta['input_shape']
+        if not isinstance(input_shape, Sequence):
+            input_shape = (3, input_shape, input_shape)
+        elif isinstance(input_shape, str): # 3,800,800
+            input_shape = [int(v) for v in input_shape.strip().split(',')]
+
+        batch = torch.ones(()).new_empty(
+            (1, *input_shape),
+            dtype=next(deployed_model.parameters()).dtype,
+            device=next(deployed_model.parameters()).device)
+        #pdb.set_trace()
+        _ = deployed_model(batch)
+        model_name = hashlib.md5(json.dumps(model_meta).encode('utf-8')).hexdigest()[:8]
+        filename = osp.join(args.out_dir, model_name + '.pth')
+        save_checkpoint(deployed_model, filename)
+
+        if rank == 0:
+            if n % interval == 0:
+                pbar.update(interval)
+
+    # if args.label_mapping_path is not None:
+    #     label_mapping = LabelMapping.load(args.label_mapping_path)
+    #     classes = label_mapping.names
+
+
+    # if 'meta' in ckpt.keys():
+    #     ckpt['meta']['CLASSES'] = tuple(classes)
+
+    # surgeon = FCMapLabelSurgeon(label_mapping)
+    # ckpt['state_dict'] = surgeon.operate_on(ckpt['state_dict'])
+    # torch.save(ckpt, args.dst_ckpt)
+    dist.barrier()
+    time.sleep(2)
+    print('Done.')
+
+
+if __name__ == '__main__':
+    main()

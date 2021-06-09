@@ -156,3 +156,9 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
             loss=loss, log_vars=log_vars, num_samples=len(data['img'].data),logits=losses.get('logits',None))
 
         return outputs
+
+        
+    def forward_dummy(self, img):
+        # needn't img_metas, just use None to placeholder
+        logit = self.forward_test(img, return_logits=True, img_metas=None)
+        return logit

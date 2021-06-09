@@ -1,6 +1,7 @@
 # standard lib
 import os
 import sys
+import pdb
 import os.path as osp
 import argparse
 import json
@@ -20,11 +21,12 @@ from tqdm import tqdm
 import mmcv
 from mmcv import Config
 from mmcv.runner import get_dist_info, init_dist, save_checkpoint
-from mmseg.models import build_segmentor
+from mmcls.models import build_classifier
+from mmcls.apis import init_model
 
 # gaia lib
+import gaiacls
 import gaiavision
-import gaiaseg
 from gaiavision.utils import FCMapLabelSurgeon
 from gaiavision.label_space import LabelMapping
 from gaiavision.model_space import build_model_sampler, fold_dict
@@ -54,7 +56,7 @@ def parse_args():
 def prepare_cfg(cfg):
     # substitute dyn_bn for dyn_sync_bn
     model = cfg['model']
-    for name in ('backbone', 'decode_head', 'auxiliary_head'):
+    for name in ('backbone', 'neck', 'head'):
         m = model.get(name, None)
         if m is not None:
             if 'norm_cfg' in m.keys():
@@ -67,9 +69,10 @@ def main():
     print('-- Args:')
     pprint(args)
     ckpt = torch.load(args.src_ckpt, map_location='cpu')
+    #pdb.set_trace()
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
-
+    #pdb.set_trace()
     # abandon sync bn
     cfg = Config.fromfile(args.config)
     cfg = prepare_cfg(cfg)
@@ -77,16 +80,22 @@ def main():
     # init distributed env first.
     if args.launcher == 'none':
         distributed = False
+        # 后面的代码都是按照distributed 是True写的，不指定rank和world size会报错
+        rank = 0
+        world_size = 1
     else:
         distributed = True
         init_dist(args.launcher, **cfg.dist_params)
         # re-set gpu_ids with distributed training mode
         rank, world_size = get_dist_info()
         cfg.gpu_ids = range(world_size)
-
+    #pdb.set_trace()
     # prepare model
-    model = build_segmentor(
-        cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
+    model = build_classifier(
+        cfg.model)
+    _ = mmcv.runner.load_checkpoint(model, args.src_ckpt,map_location='cpu')
+    #model = init_segmentor(args.config, args.src_ckpt,device='cuda:0')
+    #pdb.set_trace()
     if torch.cuda.is_available():
         model.cuda()
     model.eval()
@@ -125,7 +134,7 @@ def main():
             (1, *input_shape),
             dtype=next(deployed_model.parameters()).dtype,
             device=next(deployed_model.parameters()).device)
-
+        #pdb.set_trace()
         _ = deployed_model(batch)
         model_name = hashlib.md5(json.dumps(model_meta).encode('utf-8')).hexdigest()[:8]
         filename = osp.join(args.out_dir, model_name + '.pth')
