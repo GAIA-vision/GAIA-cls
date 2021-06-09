@@ -6,7 +6,7 @@ from torch import nn as nn
 
 # mm library
 from mmcv.cnn import build_conv_layer
-from mmseg.models.utils import ResLayer
+from mmcls.models.backbones.resnet import ResLayer
 
 # gaia lib
 from gaiavision.core import DynamicMixin

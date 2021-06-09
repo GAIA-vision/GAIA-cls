@@ -102,6 +102,7 @@ optimizer_config = dict(grad_clip=None)
 lr_config = dict(policy='step', step=[30, 60, 90])
 
 # 使用蒸馏的pipeline
+subnet_num = 4
 runner = dict(type='EpochBasedRunnerWithdistill', max_epochs=100)
 checkpoint_config = dict(interval=1)
 log_config = dict(interval=100, hooks=[dict(type='TextLoggerHook')])
@@ -127,7 +128,8 @@ body_depth_range = dict(
     end=[3, 4, 23, 3],
     step=[1, 2, 2, 1])
 
-# 蒸馏必须显式制定，感觉放入到EpochBasedRunnerWithDistill里面比较合适。。。
+# 蒸馏必须显式制定MAX_NET，感觉MAX_NET的配置放入到EpochBasedRunnerWithDistill
+# 里面比较合适。。。
 # to do（）
 MAX_NET = dict({
     'arch.backbone.stem.width': 64,

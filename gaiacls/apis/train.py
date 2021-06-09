@@ -192,5 +192,6 @@ def train_model(model,
         model = convert_splitbn_model(model,num_aug_splits)
 
     maxnet_config = cfg.get('MAX_NET',None)
-
-    runner.run(data_loaders, cfg.workflow, maxnet_config=maxnet_config)
+    subnet_num = cfg.get('subnet_num',None)
+    # 这个hook传进去是为了帮助改architecture
+    runner.run(data_loaders, cfg.workflow, maxnet_config=maxnet_config, subnet_num=subnet_num, manipulate_arch_hook=manipulate_arch_hook)

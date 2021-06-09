@@ -12,8 +12,8 @@ import torch.distributed as dist
 import mmcv
 from mmcv.runner import Hook
 
-from mmseg.utils import get_root_logger
-from mmseg.core import EvalHook
+from mmcls.utils import get_root_logger
+from mmcls.core import EvalHook
 
 # gaia lib
 from gaiavision import broadcast_object

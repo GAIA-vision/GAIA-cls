@@ -38,7 +38,7 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
     def manipulate_backbone(self, arch_meta):
         self.backbone.manipulate_arch(arch_meta)
 
-    def forward_train(self, img, gt_label, teacher_logits=None, **kwargs):
+    def forward_train(self, img, gt_label, **kwargs):
         """Forward computation during training.
         Args:
             img (Tensor): of shape (N, C, H, W) encoding input images.
@@ -52,7 +52,7 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
         """
         
         if(self.augmix_used):
-            
+            # to do: label 感觉也得处理成对应的shape，否则下面的mixup不兼容, 因为JSDloss是跟下面这个处理对齐的，所以JSDloss也得改（）
             batch_size,C,H,W = img.shape
             original_channel_num = C // self.aug_split_num
             assert original_channel_num * self.aug_split_num == C
@@ -73,7 +73,7 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
 
         losses = dict()
         
-        loss = self.head.forward_train(x, gt_label, teacher_logits=teacher_logits, **kwargs)
+        loss = self.head.forward_train(x, gt_label, **kwargs)
         
         losses.update(loss)
 
@@ -153,6 +153,6 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
         loss, log_vars = self._parse_losses(losses)
 
         outputs = dict(
-            loss=loss, log_vars=log_vars, num_samples=len(data['img'].data))
+            loss=loss, log_vars=log_vars, num_samples=len(data['img'].data),logits=losses.get('logits',None))
 
         return outputs
