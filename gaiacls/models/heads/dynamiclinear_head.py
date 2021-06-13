@@ -34,7 +34,7 @@ class DynamicLinearClsHead(LinearClsHead):
         self.fc = DynamicLinear(self.in_channels, self.num_classes)
 
 
-    def loss(self, cls_score, gt_label, teacher_logits=None, only_distill=False, dtillation_weight=0.4,**kwargs):
+    def loss(self, cls_score, gt_label, teacher_logits=None, only_distill=False, distillation_weight=0.4,**kwargs):
 
         #import pdb
         #pdb.set_trace()
@@ -47,7 +47,7 @@ class DynamicLinearClsHead(LinearClsHead):
             teacher_score = F.softmax(teacher_logits/T, dim=1)
             student_score = F.softmax(cls_score/T, dim=1)
             # 这个是不是需要裁剪一下，KLDivergence在两个分布差别很大的时候梯度好像是有问题的。
-            temp_loss = torch.nn.KLDivLoss()(teacher_score, student_score)
+            temp_loss = torch.nn.KLDivLoss()(student_score.log(), teacher_score)
             losses['loss'] = temp_loss
             return losses
 
@@ -59,17 +59,17 @@ class DynamicLinearClsHead(LinearClsHead):
         assert len(acc) == len(self.topk)
         losses['loss'] = loss
         losses['accuracy'] = {f'top-{k}': a for k, a in zip(self.topk, acc)}
-        print("1111")
+        #print("1111")
             
         if teacher_logits is not None:
             T = 2
             teacher_score = F.softmax(teacher_logits/T, dim=1)
             student_score = F.softmax(cls_score/T, dim=1)
             # 这个是不是需要裁剪一下，KLDivergence在两个分布差别很大的时候梯度好像是有问题的。
-            temp_loss = torch.nn.KLDivLoss()(teacher_score, student_score)
+            temp_loss = torch.nn.KLDivLoss()(student_score.log(),teacher_score)
             # 这个地方的蒸馏loss感觉最好也设置一个weight,先设置成0.4 具体设置多少最优感觉还得调参？
-            losses['loss'] += (temp_loss*dtillation_weight)  
-            print("2222")
+            losses['loss'] += (temp_loss*distillation_weight)  
+            #print("2222")
 
         return losses
 
