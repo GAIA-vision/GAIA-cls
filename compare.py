@@ -85,6 +85,7 @@ def train(train_loader, model, local_rank, rank, criterion, optimizer, base_lr, 
 
 def main():
     from torch.nn.parallel import DistributedDataParallel
+    import math
     from util.dist_init import dist_init
     
     rank, local_rank, world_size = dist_init(args.port)
