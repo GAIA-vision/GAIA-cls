@@ -3,7 +3,7 @@ from util.torch_dist_sum import *
 from data.imagenet import *
 from data.augmentation import *
 from util.meter import *
-from network.ressl import ReSSL
+from network.ressl_multi import ReSSL
 import time
 import torch.nn as nn
 import argparse
@@ -14,8 +14,8 @@ import os
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=23457)
 parser.add_argument('--epochs', type=int, default=200)
-parser.add_argument('--lr', type=float, default=0.05)
 parser.add_argument('--t', type=float, default=0.04)
+parser.add_argument('--lr', type=float, default=0.05)
 parser.add_argument('--backbone', type=str, default='resnet50')
 args = parser.parse_args()
 print(args)
@@ -54,22 +54,21 @@ def train(train_loader, model, local_rank, rank, criterion, optimizer, base_lr, 
     iteration_per_epoch = len(train_loader)
 
     end = time.time()
-    for i, (img1, img2) in enumerate(train_loader):
+    for i, (img_list, _) in enumerate(train_loader):
         adjust_learning_rate(optimizer, epoch, base_lr, i, iteration_per_epoch)
         # measure data loading time
         data_time.update(time.time() - end)
 
         if local_rank is not None:
-            img1 = img1.cuda(local_rank, non_blocking=True)
-            img2 = img2.cuda(local_rank, non_blocking=True)
+            img_list = [img.cuda(local_rank, non_blocking=True) for img in img_list]
 
         # compute output
-        logitsq, ligitsk = model(im_q=img1, im_k=img2)
+        logitsq, ligitsk = model(im_q=img_list[1:], im_k=img_list[0])
         loss = - torch.sum(F.softmax(ligitsk.detach() / args.t, dim=1) * F.log_softmax(logitsq / 0.1, dim=1), dim=1).mean()
 
         # acc1/acc5 are (K+1)-way contrast classifier accuracy
         # measure accuracy and record loss
-        losses.update(loss.item(), img1.size(0))
+        losses.update(loss.item(), logitsq.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -110,18 +109,18 @@ def main():
 
     torch.backends.cudnn.benchmark = True
 
-    train_dataset = ImagenetContrastive(aug=[moco_aug, target_aug], max_class=1000)
+    train_dataset = Imagenet(aug=Multi_Transform(nmb_crops=[1, 1, 1, 1, 1]), max_class=1000)
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=batch_size, shuffle=(train_sampler is None),
         num_workers=num_workers, pin_memory=True, sampler=train_sampler, drop_last=True)
     
     criterion = nn.CrossEntropyLoss().cuda(local_rank)
-    
+
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
 
-    checkpoint_path = 'checkpoints/ressl-{}-{}.pth'.format(args.backbone, epochs)
+    checkpoint_path = 'checkpoints/ressl-multi-{}-{}.pth'.format(args.backbone, epochs)
     print('checkpoint_path:', checkpoint_path)
     if os.path.exists(checkpoint_path):
         checkpoint =  torch.load(checkpoint_path, map_location='cpu')
