@@ -53,6 +53,7 @@ class DynamicImageClassifier(ImageClassifier, DynamicMixin):
         
         if(self.augmix_used):
             # to do: label 感觉也得处理成对应的shape，否则下面的mixup不兼容, 因为JSDloss是跟下面这个处理对齐的，所以JSDloss也得改（）
+            # 用tensor.repeat(axis, num) label.repeat(0, aug_split_num)
             batch_size,C,H,W = img.shape
             original_channel_num = C // self.aug_split_num
             assert original_channel_num * self.aug_split_num == C
