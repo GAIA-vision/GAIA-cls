@@ -1,0 +1,2 @@
+from .elastic_conformer_head import ElasticConformerClsHead
+from .elastic_conformer_pooling_head import ElasticConformerPoolingHead
